@@ -771,6 +771,14 @@ textarea { resize: vertical; min-height: 170px; display: block; }
   border-top: 1px dashed var(--line-2);
 }
 .submit-note { margin: 0; font-size: 12px; color: var(--muted); }
+.privacy-note {
+  max-width: 620px;
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+.privacy-note::before { content: '// '; color: var(--g2); }
 .form-err { margin: 14px 0 0; font-size: 13px; color: var(--red); }
 .form-err:empty { display: none; }
 
