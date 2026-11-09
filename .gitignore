@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Supabase (functions & migrations are kept locally, deployed via MCP/CLI)
+supabase/
+
+# Editor settings
+.vscode/

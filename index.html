@@ -84,6 +84,7 @@
             <p>Android and iOS apps, from first prototype to Play Store launch. We've shipped 10+ to production.</p>
             <ul>
               <li>Android &amp; iOS</li>
+              <li>Launch in a day via our Google Play organisation account</li>
               <li>Play Store / App Store publishing</li>
               <li>Backend, login &amp; admin panel</li>
             </ul>
@@ -155,6 +156,20 @@
             <p class="stat-num">Lakhs</p>
             <p class="stat-label">of people using what we've built</p>
           </div>
+        </div>
+
+        <div class="play-note" data-reveal>
+          <span class="play-icon" aria-hidden="true">▶</span>
+          <div class="play-copy">
+            <p class="play-title">Google Play organisation account</p>
+            <p>Personal developer accounts have to run a closed test with at least 12 testers for 14 days before they can publish. We publish through our own organisation account, so your app can go live in just a day.</p>
+            <ul class="play-perks">
+              <li><b>Launch in a day.</b> No 14-day closed testing.</li>
+              <li><b>Financial apps allowed.</b> Payments, lending and other finance apps need an organisation account.</li>
+              <li><b>Fewer hurdles.</b> Skip the extra checks that personal accounts go through.</li>
+            </ul>
+          </div>
+          <button class="btn btn-ghost btn-sm" type="button" data-order="app">Order an app <span class="arr">→</span></button>
         </div>
       </div>
     </section>
@@ -306,7 +321,7 @@
                 <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
                   <span class="btn-label">Send order</span> <kbd>↵</kbd>
                 </button>
-                <p class="submit-note">No payment now. We reply with questions and a quote.</p>
+                <p class="submit-note">No payment now. We'll email you a code to verify your address.</p>
               </div>
               <p class="form-err" id="form-err" role="alert"></p>
             </form>
@@ -324,10 +339,35 @@
 
             <div class="term-done" id="term-done" hidden>
               <pre class="log" id="term-log" aria-live="polite"></pre>
+              <div class="log-actions" id="log-actions" hidden>
+                <button type="button" class="btn btn-ghost btn-sm" data-back>← Edit order</button>
+              </div>
+
+              <form class="otp" id="otp-form" hidden novalidate>
+                <h3>Check your inbox.</h3>
+                <p>We sent a 6-digit code to <b id="otp-email"></b>. Enter it to verify your email and send your order.</p>
+                <div class="otp-cells" id="otp-cells" role="group" aria-label="Verification code">
+                  <input class="otp-cell" inputmode="numeric" autocomplete="one-time-code" placeholder="·" aria-label="Digit 1" />
+                  <input class="otp-cell" inputmode="numeric" autocomplete="off" placeholder="·" aria-label="Digit 2" />
+                  <input class="otp-cell" inputmode="numeric" autocomplete="off" placeholder="·" aria-label="Digit 3" />
+                  <input class="otp-cell" inputmode="numeric" autocomplete="off" placeholder="·" aria-label="Digit 4" />
+                  <input class="otp-cell" inputmode="numeric" autocomplete="off" placeholder="·" aria-label="Digit 5" />
+                  <input class="otp-cell" inputmode="numeric" autocomplete="off" placeholder="·" aria-label="Digit 6" />
+                </div>
+                <p class="err" id="otp-err" aria-live="polite"></p>
+                <p class="otp-ok" id="otp-ok" aria-live="polite"></p>
+                <div class="otp-actions">
+                  <button type="submit" class="btn btn-primary" id="otp-submit"><span class="btn-label">Verify &amp; send order</span> <kbd>↵</kbd></button>
+                  <button type="button" class="link-btn" id="otp-resend" disabled>Resend code</button>
+                  <button type="button" class="link-btn" data-back>← Edit order</button>
+                </div>
+                <p class="otp-note">Can't find it? Check your spam or promotions folder. The code expires in 10 minutes.</p>
+              </form>
+
               <div class="done-card" id="done-card" hidden>
                 <canvas data-scene="bitmap" data-text="SENT!" data-pad="1" data-max-cell="30" aria-hidden="true"></canvas>
                 <h3>Order received.</h3>
-                <p>Your order ID is <code id="done-id">—</code>. We'll read your brief and get back to you with questions and a quote.</p>
+                <p>Your order ID is <code id="done-id">—</code>. <span id="done-mail">We've emailed a copy with all the details to <b id="done-email"></b>.</span> We'll get back to you with questions and a quote.</p>
                 <button type="button" class="btn btn-ghost" id="new-order">Start another order</button>
               </div>
             </div>
@@ -361,8 +401,12 @@
             <p>Yes. Send us a link to your current app, site or file in the form and tell us what isn't working.</p>
           </details>
           <details>
+            <summary>Do I need my own Google Play developer account?</summary>
+            <p>No. We publish through our Google Play organisation account, so your app can go live in just a day, without the 14-day closed testing that personal accounts must complete first. Organisation accounts can also publish financial apps (payments, lending and similar), which personal accounts can't, and they skip the extra hurdles personal accounts face.</p>
+          </details>
+          <details>
             <summary>Who owns the final product?</summary>
-            <p>You do. Source files, code and accounts are handed over to you at the end of the project.</p>
+            <p>You do. Source code and design files are handed over to you at the end of the project. If we publish your app on our Play account, we can transfer it to your own developer account whenever you want.</p>
           </details>
         </div>
       </div>

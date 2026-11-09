@@ -195,10 +195,79 @@
     line.textContent = text;
   }
 
-  let sending = false;
+  /* ───────────── send: verify the email with a code, then submit ───────────── */
+
+  const otpForm = $('#otp-form');
+  const otpCells = $$('.otp-cell', otpForm);
+  const otpErr = $('#otp-err');
+  const otpOk = $('#otp-ok');
+  const otpSubmit = $('#otp-submit');
+  const otpResend = $('#otp-resend');
+  const logActions = $('#log-actions');
+
+  const ERRORS = {
+    invalid_email: "✗ That email address doesn't look right.",
+    too_many_codes: '✗ Too many codes requested for this email. Try again in an hour.',
+    mail_failed: "✗ We couldn't send an email to that address. Check it and try again.",
+    code_expired: '✗ This code has expired. Request a new one.',
+    code_locked: '✗ Too many wrong attempts. Request a new code.',
+    too_many_orders: '✗ Too many orders from your network. Please try again later.',
+    invalid_order: '✗ Some order details are invalid. Edit your order and try again.',
+    network: "✗ Couldn't reach our server. Check your connection and try again."
+  };
+  const errText = (err) => ERRORS[err.code] || '✗ Something went wrong on our side. Please try again.';
+
+  let pending = null; // order waiting for its email to be verified
+  let busy = false;
+  let resendTimer = 0;
+
+  const scrollToTerm = () => $('.term').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+  const codeValue = () => otpCells.map((c) => c.value).join('');
+  const clearCells = () => otpCells.forEach((c) => { c.value = ''; });
+
+  function finishLine(text, cls) {
+    const line = log.lastChild;
+    line.textContent += text;
+    line.classList.remove('pending');
+    if (cls) line.classList.add(cls);
+  }
+
+  function startResendCountdown(seconds) {
+    clearInterval(resendTimer);
+    let left = Math.max(0, Math.ceil(seconds || 0));
+    const tick = () => {
+      otpResend.disabled = left > 0;
+      otpResend.textContent = left > 0 ? `Resend code in ${left}s` : 'Resend code';
+      if (left-- <= 0) clearInterval(resendTimer);
+    };
+    tick();
+    resendTimer = setInterval(tick, 1000);
+  }
+
+  function showOtp(email, resendAfter) {
+    $('#otp-email').textContent = email;
+    otpErr.textContent = '';
+    otpOk.textContent = '';
+    clearCells();
+    otpForm.hidden = false;
+    logActions.hidden = true;
+    startResendCountdown(resendAfter);
+    setTimeout(() => otpCells[0].focus({ preventScroll: true }), 50);
+  }
+
+  function backToForm() {
+    clearInterval(resendTimer);
+    pending = null;
+    done.hidden = true;
+    otpForm.hidden = true;
+    termBody.classList.remove('is-sending');
+    scrollToTerm();
+  }
+  $$('[data-back]').forEach((b) => b.addEventListener('click', backToForm));
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (sending) return;
+    if (busy) return;
 
     const order = buildOrder();
     const errs = validate(order);
@@ -213,46 +282,147 @@
       return;
     }
 
-    sending = true;
+    busy = true;
     submitBtn.disabled = true;
-    order.createdAt = new Date().toISOString();
+    pending = order;
 
     termBody.classList.add('is-sending');
     done.hidden = false;
     doneCard.hidden = true;
+    otpForm.hidden = true;
+    logActions.hidden = true;
     log.textContent = '';
-    $('.term').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
-
-    const started = performance.now();
-    const request = window.submitOrder(order);
-    const size = (new Blob([JSON.stringify(order)]).size / 1024).toFixed(1);
+    scrollToTerm();
 
     try {
-      await typeLine(`$ order submit --type ${order.types.join(',')}`, 'cmd');
-      await sleep(240);
-      await typeLine('→ validating brief ............ ok');
-      await sleep(240);
-      await typeLine(`→ packing order.json .......... ok  (${size} kb)`);
-      await sleep(240);
-      await typeLine('→ notifying the team .......... ', 'pending');
-      const res = await request;
-      log.lastChild.textContent += 'ok';
-      log.lastChild.classList.remove('pending');
-      await sleep(200);
-      await typeLine(`✓ done in ${((performance.now() - started) / 1000).toFixed(1)}s`, 'ok');
-      await sleep(350);
-      $('#done-id').textContent = res.id;
-      doneCard.hidden = false;
-    } catch (err) {
-      console.error(err);
-      await typeLine("✗ couldn't send your order. Check your connection and try again.", 'bad');
-      await sleep(1600);
-      done.hidden = true;
-      termBody.classList.remove('is-sending');
-      formErr.textContent = "✗ couldn't send. Your details are still here, so try again.";
+      await typeLine(`$ order verify --email ${order.email}`, 'cmd');
+      await typeLine('→ sending a 6-digit code ........ ', 'pending');
+      try {
+        const res = await OrderApi.sendOtp(order.email, order.name);
+        finishLine('ok');
+        showOtp(order.email, res.resend_after);
+      } catch (err) {
+        if (err.code === 'too_soon') {
+          // a code went out moments ago; let them use it
+          finishLine('already sent');
+          showOtp(order.email, err.data.retry_after);
+        } else {
+          finishLine('failed', 'bad');
+          await typeLine(errText(err), 'bad');
+          logActions.hidden = false;
+        }
+      }
     } finally {
-      sending = false;
+      busy = false;
       submitBtn.disabled = false;
+    }
+  });
+
+  /* code cells: type, paste or autofill; backspace / arrows move between cells */
+  function fillFrom(start, digits) {
+    for (let k = 0; k < digits.length && start + k < otpCells.length; k++) otpCells[start + k].value = digits[k];
+    otpCells[Math.min(start + digits.length, otpCells.length - 1)].focus();
+    if (codeValue().length === otpCells.length) otpForm.requestSubmit();
+  }
+
+  otpCells.forEach((cell, i) => {
+    cell.addEventListener('input', () => {
+      const digits = cell.value.replace(/\D/g, '');
+      otpErr.textContent = '';
+      if (digits.length > 1) { fillFrom(i, digits); return; }
+      cell.value = digits;
+      if (digits && i < otpCells.length - 1) otpCells[i + 1].focus();
+      if (codeValue().length === otpCells.length) otpForm.requestSubmit();
+    });
+    cell.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !cell.value && i > 0) {
+        e.preventDefault();
+        otpCells[i - 1].value = '';
+        otpCells[i - 1].focus();
+      } else if (e.key === 'ArrowLeft' && i > 0) otpCells[i - 1].focus();
+      else if (e.key === 'ArrowRight' && i < otpCells.length - 1) otpCells[i + 1].focus();
+    });
+    cell.addEventListener('paste', (e) => {
+      const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '');
+      if (!digits) return;
+      e.preventDefault();
+      fillFrom(i, digits);
+    });
+    cell.addEventListener('focus', () => cell.select());
+  });
+
+  function shake() {
+    const group = $('#otp-cells');
+    group.classList.remove('shake');
+    void group.offsetWidth;
+    group.classList.add('shake');
+  }
+
+  otpForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy || !pending) return;
+    const code = codeValue();
+    if (code.length !== otpCells.length) {
+      otpErr.textContent = '✗ Enter all 6 digits.';
+      shake();
+      return;
+    }
+
+    busy = true;
+    otpSubmit.disabled = true;
+    otpOk.textContent = '';
+    $('.btn-label', otpSubmit).textContent = 'Verifying…';
+    const started = performance.now();
+
+    try {
+      const res = await OrderApi.submitOrder(pending, code);
+      clearInterval(resendTimer);
+      otpForm.hidden = true;
+      await typeLine('→ email verified ................ ok');
+      await typeLine(`→ saving order ${res.order_code} ........ ok`);
+      await typeLine(`→ emailing your confirmation .... ${res.email_sent ? 'ok' : 'delayed'}`);
+      await typeLine(`✓ done in ${((performance.now() - started) / 1000).toFixed(1)}s`, 'ok');
+      await sleep(300);
+      $('#done-id').textContent = res.order_code;
+      $('#done-email').textContent = pending.email;
+      $('#done-mail').hidden = !res.email_sent;
+      doneCard.hidden = false;
+      pending = null;
+    } catch (err) {
+      if (err.code === 'code_invalid') {
+        const left = err.data.attempts_left;
+        otpErr.textContent = `✗ That code isn't right.${left ? ` ${left} attempt${left > 1 ? 's' : ''} left.` : ''}`;
+      } else {
+        otpErr.textContent = errText(err);
+        if (err.code === 'code_expired' || err.code === 'code_locked') startResendCountdown(0);
+      }
+      clearCells();
+      shake();
+      otpCells[0].focus();
+    } finally {
+      busy = false;
+      otpSubmit.disabled = false;
+      $('.btn-label', otpSubmit).textContent = 'Verify & send order';
+    }
+  });
+
+  otpResend.addEventListener('click', async () => {
+    if (!pending || busy) return;
+    otpResend.disabled = true;
+    otpErr.textContent = '';
+    otpOk.textContent = '';
+    try {
+      const res = await OrderApi.sendOtp(pending.email, pending.name);
+      otpOk.textContent = '✓ New code sent. Check your inbox.';
+      clearCells();
+      otpCells[0].focus();
+      startResendCountdown(res.resend_after);
+    } catch (err) {
+      if (err.code === 'too_soon') startResendCountdown(err.data.retry_after);
+      else {
+        otpErr.textContent = errText(err);
+        startResendCountdown(err.code === 'too_many_codes' ? 3600 : 10);
+      }
     }
   });
 
@@ -260,10 +430,8 @@
     form.reset();
     showErrors({});
     formErr.textContent = '';
-    done.hidden = true;
-    termBody.classList.remove('is-sending');
+    backToForm();
     update();
-    $('.term').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
   });
 
   update();

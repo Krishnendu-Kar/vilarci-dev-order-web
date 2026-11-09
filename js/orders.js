@@ -1,38 +1,118 @@
 /* ──────────────────────────────────────────────────────────────
-   Order submission.
+   Order API: talks to the `dev-order` Supabase edge function.
 
-   This is the only place that talks to a backend. For now it just
-   simulates a network call. When the database is ready, replace the
-   body of submitOrder() with a real insert, e.g. Supabase:
+     OrderApi.sendOtp(email, name)    → { ok, expires_in, resend_after }
+     OrderApi.submitOrder(order, code) → { ok, order_code, email_sent }
 
-     const { data, error } = await supabase
-       .from('orders').insert(order).select('id').single();
-     if (error) throw error;
-     return { id: data.id };
+   Failures throw OrderApi.Error with a `code` such as:
+     invalid_email, too_soon (data.retry_after), too_many_codes, mail_failed,
+     code_invalid (data.attempts_left), code_expired, code_locked,
+     too_many_orders, invalid_order (data.fields), server_error, network
 
-   `order` shape (see buildOrder() in app.js):
-     { types: string[], description: string, budget: string|null,
-       timeline: string|null, name: string, email: string,
-       phone: string|null, company: string|null,
-       contactVia: 'email'|'whatsapp'|'call', links: string|null,
-       createdAt: ISO string }
+   Browser / device details are collected here and sent with the order;
+   the function adds the IP address and request headers on its side.
    ────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';
 
-  function makeId() {
-    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    var id = '';
-    for (var i = 0; i < 6; i++) id += alphabet[Math.floor(Math.random() * alphabet.length)];
-    return 'VD-' + id;
+  const API = 'https://gxvcgubbqtccoycvdupq.supabase.co/functions/v1/dev-order';
+  const pageLoadedAt = Date.now();
+
+  class OrderApiError extends Error {
+    constructor(code, data) {
+      super(code);
+      this.code = code;
+      this.data = data || {};
+    }
   }
 
-  window.submitOrder = function (order) {
-    return new Promise(function (resolve) {
-      setTimeout(function () {
-        console.info('[orders] (mock) order submitted:', order);
-        resolve({ id: makeId() });
-      }, 900);
+  async function call(payload) {
+    let res;
+    try {
+      res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      throw new OrderApiError('network');
+    }
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* non-JSON error page */ }
+    if (!res.ok || !data.ok) throw new OrderApiError(data.error || `http_${res.status}`, data);
+    return data;
+  }
+
+  const safe = (fn) => { try { return fn(); } catch (e) { return undefined; } };
+
+  async function collectClientInfo() {
+    const n = navigator;
+    const s = window.screen;
+    const info = {
+      userAgent: n.userAgent,
+      platform: n.platform,
+      vendor: n.vendor,
+      language: n.language,
+      languages: n.languages ? Array.from(n.languages) : undefined,
+      timezone: safe(() => Intl.DateTimeFormat().resolvedOptions().timeZone),
+      timezoneOffsetMin: new Date().getTimezoneOffset(),
+      screen: {
+        width: s.width,
+        height: s.height,
+        availWidth: s.availWidth,
+        availHeight: s.availHeight,
+        colorDepth: s.colorDepth,
+        pixelRatio: window.devicePixelRatio,
+        orientation: safe(() => s.orientation.type)
+      },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      hardwareConcurrency: n.hardwareConcurrency,
+      deviceMemory: n.deviceMemory,
+      maxTouchPoints: n.maxTouchPoints,
+      cookieEnabled: n.cookieEnabled,
+      doNotTrack: n.doNotTrack,
+      pdfViewerEnabled: n.pdfViewerEnabled,
+      webdriver: n.webdriver,
+      prefersColorScheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      referrer: document.referrer || undefined,
+      page: location.href,
+      timeOnPageSec: Math.round((Date.now() - pageLoadedAt) / 1000),
+      capturedAt: new Date().toISOString()
+    };
+
+    const c = n.connection;
+    if (c) info.connection = { effectiveType: c.effectiveType, downlink: c.downlink, rtt: c.rtt, saveData: c.saveData, type: c.type };
+
+    info.gpu = safe(() => {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : undefined;
     });
+
+    const utm = {};
+    new URLSearchParams(location.search).forEach((v, k) => { if (k.startsWith('utm_')) utm[k] = v.slice(0, 200); });
+    if (Object.keys(utm).length) info.utm = utm;
+
+    if (n.userAgentData) {
+      info.uaData = { brands: n.userAgentData.brands, mobile: n.userAgentData.mobile, platform: n.userAgentData.platform };
+      try {
+        const hi = await n.userAgentData.getHighEntropyValues(['platformVersion', 'model', 'architecture', 'bitness', 'fullVersionList']);
+        Object.assign(info.uaData, {
+          platformVersion: hi.platformVersion,
+          model: hi.model,
+          architecture: hi.architecture,
+          bitness: hi.bitness,
+          fullVersionList: hi.fullVersionList
+        });
+      } catch (e) { /* not granted */ }
+    }
+    return info;
+  }
+
+  window.OrderApi = {
+    Error: OrderApiError,
+    sendOtp: (email, name) => call({ action: 'send-otp', email, name }),
+    submitOrder: async (order, code) => call({ action: 'submit', code, order, client: await collectClientInfo() })
   };
 })();

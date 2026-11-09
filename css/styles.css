@@ -489,6 +489,52 @@ h2 {
   color: var(--muted);
 }
 
+.play-note {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 22px 24px;
+  border: 1px solid var(--g1);
+  background:
+    linear-gradient(90deg, rgba(62, 207, 142, .09), rgba(62, 207, 142, 0) 70%),
+    var(--bg);
+}
+.play-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: var(--g3);
+  color: var(--ink);
+  font-size: 18px;
+  box-shadow: 4px 4px 0 var(--g1);
+}
+.play-copy { flex: 1; min-width: 0; }
+.play-copy p { margin: 0; font-size: 14px; color: var(--muted); max-width: 720px; }
+.play-copy .play-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--g4);
+}
+.play-note .btn { flex: none; }
+.play-perks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 24px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px dashed var(--line-2);
+  list-style: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+.play-perks li::before { content: '→'; color: var(--g3); margin-right: 8px; }
+.play-perks b { color: var(--text); font-weight: 600; }
+
 /* ───────────── process ───────────── */
 
 .steps {
@@ -783,6 +829,79 @@ textarea { resize: vertical; min-height: 170px; display: block; }
 .log-line.bad { color: var(--red); }
 .log-line.pending::after { content: '▋'; color: var(--g3); animation: caret .8s steps(1) infinite; }
 
+.log-actions { margin: -12px 0 0; }
+
+/* email verification step */
+.otp {
+  max-width: 560px;
+  padding: 28px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  animation: rise .5s var(--ease);
+}
+.otp h3 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+  font-stretch: 85%;
+  letter-spacing: -.03em;
+}
+.otp > p { margin: 0 0 22px; color: var(--muted); }
+.otp > p b { word-break: break-all; }
+.otp-cells { display: flex; gap: 8px; }
+.otp .otp-cell {
+  width: 54px;
+  height: 66px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 700 28px/1 var(--mono);
+  text-align: center;
+  caret-color: var(--g3);
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+.otp .otp-cell::placeholder { color: var(--faint); }
+.otp .otp-cell:focus {
+  outline: none;
+  border-color: var(--g3);
+  box-shadow: 0 0 0 3px rgba(62, 207, 142, .16);
+}
+.otp .otp-cell:not(:placeholder-shown) {
+  background: var(--g3);
+  border-color: var(--g3);
+  color: var(--ink);
+}
+.otp-cells.shake { animation: shake .4s; }
+@keyframes shake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.otp .err { margin-top: 12px; }
+.otp-ok { margin: 12px 0 0; font-size: 12px; color: var(--g3); }
+.otp-ok:empty { display: none; }
+.otp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  margin-top: 24px;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: 500 13px/1.4 var(--mono);
+  cursor: pointer;
+  transition: color .15s;
+}
+.link-btn:hover:not(:disabled) { color: var(--g3); }
+.link-btn:disabled { color: var(--faint); cursor: default; }
+.otp-note { margin: 22px 0 0 !important; font-size: 12px; color: var(--faint) !important; }
+
 .done-card {
   max-width: 560px;
   padding: 28px;
@@ -895,6 +1014,7 @@ textarea { resize: vertical; min-height: 170px; display: block; }
   .preview { border-left: 0; border-top: 1px solid var(--line); }
   .json { position: static; max-height: 360px; }
   .faq-wrap { grid-template-columns: 1fr; gap: 0; }
+  .play-perks { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -906,12 +1026,16 @@ textarea { resize: vertical; min-height: 170px; display: block; }
   .section { padding: 96px 0; }
   .section-head { margin-bottom: 44px; }
   .cards, .stats { grid-template-columns: 1fr; }
+  .play-note { flex-direction: column; align-items: flex-start; gap: 18px; padding: 22px 20px; }
   .steps { grid-template-columns: 1fr; }
   .step::after { display: none; }
   .order-form { padding: 28px 20px 32px; }
   .q-row, .grid-2 { grid-template-columns: 1fr; }
   .q-row { gap: 0; }
   .term-done { padding: 28px 20px; }
+  .otp { padding: 22px 18px; }
+  .otp-cells { gap: 6px; }
+  .otp .otp-cell { width: 100%; min-width: 0; height: 56px; font-size: 24px; }
   .term-title { text-align: left; }
   .final { padding: 88px 0; }
 }
